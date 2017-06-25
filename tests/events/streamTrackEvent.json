@@ -1,0 +1,12 @@
+{
+"pathParameters": {
+  "productId": "0206360f-d048-45f5-af80-aac37ae586f1",
+  "format": "hls",
+  "quality": "ld"
+  },
+  "headers":{
+    "x-user-id": "userId",
+    "x-partner-id": "partnerId",
+    "x-correlation-id": "correlationId"
+  }
+}

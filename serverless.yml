@@ -1,0 +1,326 @@
+service: lambda-serverless
+
+provider:
+  name: aws
+  runtime: nodejs6.10
+  memorySize: 1536
+  stage: test
+  region: us-east-1
+  profile: shtest
+  timeout: 300
+
+  iamRoleStatements:
+    - Effect: Allow
+      Resource:
+          - arn:aws:s3:::${self:custom.environment.PRIVATE_MUSIC_BUCKET}/music/hls/ld/*
+          - arn:aws:s3:::${self:custom.environment.PRIVATE_MUSIC_BUCKET}/music/hls/sd/*
+      Action:
+        - s3:GetObject
+    - Effect: Allow
+      Resource: arn:aws:dynamodb:${self:provider.region}:${self:custom.environment.AWS_ACCOUNT}:table/Lambda.*
+      Action:
+        - dynamodb:Query
+        - dynamodb:PutItem
+
+custom:
+  optimize:
+    exclude:
+      - aws-sdk
+  environment:
+    AWS_ACCOUNT: 45454545454
+    EXPIRE_MILLISECONDS: 600000
+    KEY_PAIR_ID: HYHTGYYGYGYGGHGHGHJG
+    SAMPLE_DOWNLOAD_URL: http://dfdfjiefefewjfiwje.cloudfront.net/music/sample
+    DOWNLOAD_URL: http://jcdjfdsjdsjjd.cloudfront.net/music
+    PUBLIC_DOWNLOAD_URL: http://dhfjkdshfdfd.cloudfront.net/music
+    PRIVATE_MUSIC_BUCKET: test-private-music-store.saple.tv
+    DYNAMO_USER_EBOOK_ENTITLEMENT: Lambda.UserEbookEntitlement
+    DYNAMO_USER_EBOOK_SUBSCRIPTION: Lambda.UserEbookSubscription
+    DYNAMO_USER_MUSIC_ENTITLEMENT: Lambda.UserMusicEntitlement
+    DYNAMO_USER_MUSIC_ENTITLEMENT_INDEX_CREATEDATE: createdDateIndex
+    DYNAMO_USER_MUSIC_SUBSCRIPTION: Lambda.UserMusicSubscription
+    DYNAMO_USER_VIDEO_ENTITLEMENT: Lambda.UserVideoEntitlement
+    DYNAMO_USER_VIDEO_ENTITLEMENT_INDEX_CREATEDATE: createdDateIndex
+    DYNAMO_USER_VIDEO_SUBSCRIPTION: Lambda.UserVideoSubscription
+    DEFAULT_PAGINATION_LIMIT: 5
+
+plugins:
+  - serverless-plugin-include-dependencies
+
+package:
+  individually: true
+  exclude:
+    - node_modules/**
+    - tests/**
+    - coverage/**
+
+functions:
+  sampleTrack:
+    handler: functions/sampleTrack/handler.handler
+    environment:
+      EXPIRE_MILLISECONDS: ${self:custom.environment.EXPIRE_MILLISECONDS}
+      KEY_PAIR_ID: ${self:custom.environment.KEY_PAIR_ID}
+      SAMPLE_DOWNLOAD_URL: ${self:custom.environment.SAMPLE_DOWNLOAD_URL}
+    events:
+      - http:
+          method: get
+          path: /music/download/track/{productId}
+
+  sampleVideo:
+    handler: functions/sampleVideo/handler.handler
+    environment:
+      EXPIRE_MILLISECONDS: ${self:custom.environment.EXPIRE_MILLISECONDS}
+      KEY_PAIR_ID: ${self:custom.environment.KEY_PAIR_ID}
+      SAMPLE_DOWNLOAD_URL: ${self:custom.environment.SAMPLE_DOWNLOAD_URL}
+    events:
+      - http:
+          method: get
+          path: /music/download/video/{productId}
+
+  track:
+    handler: functions/track/handler.handler
+    environment:
+      EXPIRE_MILLISECONDS: ${self:custom.environment.EXPIRE_MILLISECONDS}
+      KEY_PAIR_ID: ${self:custom.environment.KEY_PAIR_ID}
+      DOWNLOAD_URL: ${self:custom.environment.DOWNLOAD_URL}
+      DYNAMO_USER_MUSIC_ENTITLEMENT: ${self:custom.environment.DYNAMO_USER_MUSIC_ENTITLEMENT}
+      DYNAMO_USER_MUSIC_SUBSCRIPTION: ${self:custom.environment.DYNAMO_USER_MUSIC_SUBSCRIPTION}
+    events:
+      - http:
+          method: get
+          path: /user/music/download/track/{productId}
+
+  video:
+    handler: functions/video/handler.handler
+    environment:
+      EXPIRE_MILLISECONDS: ${self:custom.environment.EXPIRE_MILLISECONDS}
+      KEY_PAIR_ID: ${self:custom.environment.KEY_PAIR_ID}
+      DOWNLOAD_URL: ${self:custom.environment.DOWNLOAD_URL}
+      DYNAMO_USER_VIDEO_ENTITLEMENT: ${self:custom.environment.DYNAMO_USER_VIDEO_ENTITLEMENT}
+      DYNAMO_USER_VIDEO_SUBSCRIPTION: ${self:custom.environment.DYNAMO_USER_VIDEO_SUBSCRIPTION}
+    events:
+      - http:
+          method: get
+          path: /user/music/download/video/{productId}
+
+  streamTrack:
+    handler: functions/streamTrack/handler.handler
+    environment:
+      EXPIRE_MILLISECONDS: ${self:custom.environment.EXPIRE_MILLISECONDS}
+      KEY_PAIR_ID: ${self:custom.environment.KEY_PAIR_ID}
+      PRIVATE_MUSIC_BUCKET: ${self:custom.environment.PRIVATE_MUSIC_BUCKET}
+      DOWNLOAD_URL: ${self:custom.environment.DOWNLOAD_URL}
+      PUBLIC_DOWNLOAD_URL: ${self:custom.environment.PUBLIC_DOWNLOAD_URL}
+      DYNAMO_USER_MUSIC_ENTITLEMENT: ${self:custom.environment.DYNAMO_USER_MUSIC_ENTITLEMENT}
+      DYNAMO_USER_MUSIC_SUBSCRIPTION: ${self:custom.environment.DYNAMO_USER_MUSIC_SUBSCRIPTION}
+    events:
+      - http:
+          method: get
+          path: /user/music/stream/track/{productId}/{format}/{quality}
+
+  productsMusic:
+    handler: functions/productsMusic/handler.handler
+    environment:
+      DYNAMO_USER_MUSIC_ENTITLEMENT: ${self:custom.environment.DYNAMO_USER_MUSIC_ENTITLEMENT}
+      DEFAULT_PAGINATION_LIMIT: ${self:custom.environment.DEFAULT_PAGINATION_LIMIT}
+      DYNAMO_USER_MUSIC_ENTITLEMENT_INDEX_CREATEDATE: ${self:custom.environment.DYNAMO_USER_VIDEO_ENTITLEMENT_INDEX_CREATEDATE}
+    events:
+      - http:
+          method: get
+          path: /user/products/music
+
+  createEntitlement:
+    handler: functions/createEntitlement/handler.handler
+    environment:
+      DYNAMO_USER_MUSIC_ENTITLEMENT: ${self:custom.environment.DYNAMO_USER_MUSIC_ENTITLEMENT}
+
+resources:
+  Resources:
+    DynamoDbUserEbookEntitlementTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.environment.DYNAMO_USER_EBOOK_ENTITLEMENT}
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: productId
+            AttributeType: S
+          - AttributeName: createdDate
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: productId
+            KeyType: RANGE
+        LocalSecondaryIndexes:
+          - IndexName: createdDateIndex
+            KeySchema:
+                - AttributeName: userId
+                  KeyType: HASH
+                - AttributeName: createdDate
+                  KeyType: RANGE
+            Projection:
+                ProjectionType: INCLUDE
+                NonKeyAttributes:
+                  - productId
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    DynamoDbUserEbookSubscriptionTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.environment.DYNAMO_USER_EBOOK_SUBSCRIPTION}
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    DynamoDbUserMusicEntitlementTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.environment.DYNAMO_USER_MUSIC_ENTITLEMENT}
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: productId
+            AttributeType: S
+          - AttributeName: createdDate
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: productId
+            KeyType: RANGE
+        LocalSecondaryIndexes:
+          - IndexName: ${self:custom.environment.DYNAMO_USER_MUSIC_ENTITLEMENT_INDEX_CREATEDATE}
+            KeySchema:
+                - AttributeName: userId
+                  KeyType: HASH
+                - AttributeName: createdDate
+                  KeyType: RANGE
+            Projection:
+                ProjectionType: INCLUDE
+                NonKeyAttributes:
+                  - productId
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    DynamoDbUserMusicSubscriptionTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.environment.DYNAMO_USER_MUSIC_SUBSCRIPTION}
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    DynamoDbUserVideoEntitlementTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.environment.DYNAMO_USER_VIDEO_ENTITLEMENT}
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: productId
+            AttributeType: S
+          - AttributeName: createdDate
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: productId
+            KeyType: RANGE
+        LocalSecondaryIndexes:
+          - IndexName: ${self:custom.environment.DYNAMO_USER_VIDEO_ENTITLEMENT_INDEX_CREATEDATE}
+            KeySchema:
+                - AttributeName: userId
+                  KeyType: HASH
+                - AttributeName: createdDate
+                  KeyType: RANGE
+            Projection:
+                ProjectionType: INCLUDE
+                NonKeyAttributes:
+                  - productId
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    DynamoDbUserVideoSubscriptionTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.environment.DYNAMO_USER_VIDEO_SUBSCRIPTION}
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    ## Specifying the CloudFront Distribution to server your Web Application
+    WebAppCloudFrontDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Origins:
+            - DomainName: ${self:custom.environment.PRIVATE_MUSIC_BUCKET}.s3.amazonaws.com
+              ## An identifier for the origin which must be unique within the distribution
+              Id: ${self:custom.environment.PRIVATE_MUSIC_BUCKET}
+              # CustomOriginConfig:
+              #   HTTPPort: 80
+              #   HTTPSPort: 443
+              #   OriginProtocolPolicy: https-only
+              ## In case you want to restrict the bucket access use S3OriginConfig and remove CustomOriginConfig
+              S3OriginConfig:
+                OriginAccessIdentity: origin-access-identity/cloudfront/E2IBIJ2ZB97J1Y
+          Enabled: 'true'
+          Comment: Private music store content distribution
+          ## Uncomment the following section in case you are using a custom domain
+          Aliases:
+          - test-private-music.sample.tv
+          DefaultRootObject: index.html
+          ## Since the Single Page App is taking care of the routing we need to make sure ever path is served with index.html
+          ## The only exception are files that actually exist e.h. app.js, reset.css
+          DefaultCacheBehavior:
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            ## The origin id defined above
+            TargetOriginId: ${self:custom.environment.PRIVATE_MUSIC_BUCKET}
+            SmoothStreaming: 'false'
+            TrustedSigners:
+            - ${self:custom.environment.AWS_ACCOUNT}
+            ## Defining if and how the QueryString and Cookies are forwarded to the origin which in this case is S3
+            ForwardedValues:
+              QueryString: 'false'
+              Cookies:
+                Forward: none
+            ## The protocol that users can use to access the files in the origin. To allow HTTP use `allow-all`
+            ViewerProtocolPolicy: allow-all
+            MaxTTL: '86400'
+            DefaultTTL: '3600'
+          ## The certificate to use when viewers use HTTPS to request objects.
+          ViewerCertificate:
+            CloudFrontDefaultCertificate: 'true'
+          ## Uncomment the following section in case you want to enable logging for CloudFront requests
+          # Logging:
+          #   IncludeCookies: 'false'
+          #   Bucket: mylogs.s3.amazonaws.com
+          #   Prefix: myprefix
+
+  ## In order to print out the hosted domain via `serverless info` we need to define the DomainName output for CloudFormation
+  Outputs:
+    WebAppCloudFrontDistributionOutput:
+      Value:
+        'Fn::GetAtt': [ WebAppCloudFrontDistribution, DomainName ]

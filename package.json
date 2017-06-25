@@ -1,0 +1,33 @@
+{
+  "name": "lambda-serverless",
+  "version": "0.0.1",
+  "description": "Serverless",
+  "author": "Rohitha Wanni Achchige <rohitha_wa@yahoo.com>",
+  "license": "",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/rohithawa/lambda-serverless"
+  },
+  "keywords": [],
+  "devDependencies": {
+    "aws-sdk": "*",
+    "chai": "<4",
+    "chai-as-promised": "^6.0.0",
+    "eslint": "^3.19.0",
+    "mocha": "*",
+    "serverless-plugin-include-dependencies": "^2.0.3"
+  },
+  "dependencies": {
+    "bluebird": "^3.5.0",
+    "co": "^4.6.0"
+  },
+  "scripts": {
+    "test": "npm run eslint && npm run mocha",
+    "test-all": "npm run eslint && npm run mocha-all",
+    "eslint": "eslint .",
+    "mocha": "nyc --reporter=html --reporter=text mocha --recursive tests/**test.js",
+    "mocha-all": "nyc --reporter=html --reporter=text mocha --recursive tests/**test-it.js",
+    "deploy": "serverless deploy"
+  }
+}
